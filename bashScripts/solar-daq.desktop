@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Sistema Solar DAQ
+Comment=Sistema de Adquisicion de Datos Solar - Auto Terminales
+Exec=/home/pi/solar_daq_autostart.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Terminal=false
+Categories=System;

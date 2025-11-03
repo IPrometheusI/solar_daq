@@ -1,0 +1,53 @@
+sda (gpio 2)
+scl (gpio 3)
+
+-------MUX------
+s0 es el menos significativo
+s2 es el mas significativo
+s0 -> gpio17
+s1 -> gpio27
+s2 -> gpio22
+
+-------SD Module-----
+MOSI -> gpio 10
+MISO -> gpio 9
+SCLK -> gpio 11
+CS   -> gpio 8
+
+-------DHT22-------
+Signal -> GPIO5
+
+------ANEMOMETRO-----
+Signal -> gpio23
+
+------Sensor de Lluvia----
+Signal -> GPIO6
+
+------MUX1-------
+alberga sensores T0 a T7, respectivamente con Y0 a Y7
+La salida del mux es Z1
+
+------MUX2------
+alberga sensores T8 a T15, respectivamente con Y0 a Y7
+La salida del mux es Z2
+
+-----MUX3------
+alberga sensores T16 a T19, respectivamente con Y0 a Y3
+alberga sensor de irrandiancia IRR- e IRR+, respectivamente con Y4 a Y5
+La salida del mux es Z3
+
+
+------ADS1115 @ direccion I2C 0x48----------------
+a3 -> z1
+a2 -> z2
+a1 -> z3
+a0 -> direccion del viento
+
+
+
+
+------2 INA228 @ direcciones I2C 0x40 y 0x41------
+
+
+
+

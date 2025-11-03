@@ -1,0 +1,20 @@
+# Core sensor libraries
+adafruit-circuitpython-ina228
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-dht
+
+# GPIO and hardware control
+RPi.GPIO
+gpiozero
+
+# System dependencies
+board
+busio
+
+# Data handling
+influxdb-client
+
+# Development dependencies (optional)
+# numpy
+# matplotlib
+# pandas

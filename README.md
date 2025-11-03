@@ -1,93 +1,387 @@
-# DAQ
+# Sistema de Adquisición de Datos para Paneles Solares
 
+## Descripción del Proyecto
+Este proyecto implementa un sistema completo de adquisición de datos (DAQ) para el monitoreo de variables eléctricas y ambientales de dos paneles solares. El sistema utiliza una **Raspberry Pi 4** como controlador principal y realiza mediciones cada minuto durante horario operativo (5:00 AM - 6:00 PM).
 
+### Variables Monitoreadas
 
-## Getting started
+#### Variables Eléctricas (por panel)
+- **Voltaje (V)** - Precisión de 4 decimales
+- **Corriente (A)** - Precisión de 4 decimales  
+- **Potencia (W)** - Precisión de 4 decimales
+- **Energía (Wh)** - Acumulada diaria
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+#### Variables Ambientales
+- **Irradiancia Solar (W/m²)** - Sensor Spektron 210
+- **Temperatura** - 20 termistores distribuidos + DHT22
+- **Humedad (%)** - Sensor DHT22
+- **Velocidad del viento (m/s)** - Anemómetro
+- **Dirección del viento** - Sensor resistivo
+- **Precipitación (mm)** - Pluviómetro con resolución 0.2794 mm
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Objetivos
+1. **Monitoreo continuo** de parámetros eléctricos y ambientales de paneles solares
+2. **Almacenamiento local** de datos en formato CSV con sincronización automática a Google Drive
+3. **Análisis de rendimiento** mediante correlación de variables eléctricas y ambientales
+4. **Sistema robusto** con recuperación automática ante fallas y persistencia de estado
 
-## Add your files
+## Hardware Utilizado
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+### Controlador Principal
+- **Raspberry Pi 4** - Procesador ARM Cortex-A72 quad-core 1.5GHz
+- **Memoria interna** - Almacenamiento local (sin módulo SD)
+
+### Sensores de Potencia
+- **2x INA228** (Direcciones I2C: 0x40, 0x41) - Monitores de potencia de alta precisión
+- **Shunt resistors**: 2mΩ cada uno
+- **Corriente máxima**: 1.5A por canal
+
+### Sensores Ambientales
+- **ADS1115** (Dirección I2C: 0x48) - Conversor ADC 16-bit para sensores analógicos
+- **Sensor de irradiancia Spektron 210** - Conexión diferencial al ADS1115
+- **DHT22** - Sensor digital de temperatura y humedad
+- **20 Termistores NTC** - Distribuidos en 3 multiplexores (CD74HC4051)
+- **Anemómetro** - Sensor de efecto Hall (GPIO 23)
+- **Pluviómetro** - Sensor de balancín magnético (GPIO 6)
+- **Veleta** - Sensor resistivo para dirección del viento
+
+### Componentes de Interfaz
+- **3x Multiplexores CD74HC4051** - Expansión de canales analógicos
+- **Resistencias de referencia** - 10kΩ para termistores
+
+## Software y Arquitectura
+
+### Plataforma de Desarrollo
+- **Lenguaje**: Python 3.11
+- **Sistema Operativo**: Raspberry Pi OS
+- **Entorno virtual**: `venv` con dependencias aisladas
+
+### Módulos Principales
+- **implementacion.py** - Controlador principal y bucle de adquisición
+- **ina228_monitor.py** - Monitor individual de sensores INA228
+- **thermistor_monitor.py** - Gestión del array de termistores
+- **irradiance_monitor.py** - Lectura del sensor de irradiancia
+- **weather_kit_monitor.py** - Estación meteorológica completa
+- **gauge.py** - Dashboard en tiempo real
+
+### Librerías Principales
+```
+adafruit-circuitpython-ina228  # Sensores de potencia
+adafruit-circuitpython-ads1x15 # Conversor ADC
+adafruit-circuitpython-dht     # Sensor temperatura/humedad
+RPi.GPIO                       # Control GPIO
+gpiozero                       # Interfaz GPIO simplificada
+```
+
+### Sincronización en la Nube
+- **Rclone** - Sincronización automática cada minuto a Google Drive
+- **Carpeta local**: `/home/pi/Desktop/Mediciones/`
+- **Carpeta remota**: `Mediciones_RaspberryPi` en Google Drive
+
+## Funcionamiento del Sistema
+
+### Ciclo de Operación
+1. **Inicialización** (5:00 AM) - Creación de archivo CSV diario
+2. **Adquisición continua** - Mediciones cada minuto
+3. **Almacenamiento local** - Escritura inmediata a CSV
+4. **Sincronización** - Upload automático a Google Drive vía Rclone
+5. **Finalización** (6:00 PM) - Cierre de archivo y limpieza de estado
+
+### Gestión de Estado
+- **Persistencia** - Estado del sistema guardado en archivos JSON
+- **Recuperación automática** - Continuación tras reinicios inesperados  
+- **Validación de datos** - Verificación de integridad de archivos CSV
+- **Manejo de errores** - Reinicialización automática tras fallas consecutivas
+
+### Arquitectura Multi-hilo
+- **Hilo principal** - Bucle de control y escritura de datos
+- **Hilo de medición** - Lectura continua de sensores ambientales
+- **Sincronización** - Mutex para acceso exclusivo al bus I2C
+
+## Manual de Usuario
+
+### Instalación y Configuración Inicial
+
+#### 1. Preparación del Hardware
+```bash
+# Verificar conexiones según pinConfig.txt
+# I2C: GPIO 2 (SDA), GPIO 3 (SCL)  
+# MUX Control: GPIO 17, 27, 22
+# DHT22: GPIO 5
+# Anemómetro: GPIO 23
+# Pluviómetro: GPIO 6
+```
+
+#### 2. Instalación del Software en Raspberry Pi
+```bash
+# Clonar repositorio
+cd /home/pi/Desktop/
+git clone <repository-url> solar_panels_daq
+
+# Navegar al directorio de código
+cd solar_panels_daq/Proyecto_2/Codigo_PI_4/
+
+# Crear y activar entorno virtual
+python3 -m venv venv
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+```
+
+#### 2.1 Configuración de Credenciales InfluxDB
+El código no incluye credenciales; el sistema busca las variables `SOLAR_DAQ_INFLUX_URL`, `SOLAR_DAQ_INFLUX_TOKEN`, `SOLAR_DAQ_INFLUX_ORG` y `SOLAR_DAQ_INFLUX_BUCKET`.
+
+```bash
+# Crear archivo local protegido (no versionar)
+mkdir -p /home/pi/.config
+nano /home/pi/.config/solar_daq.env
+```
+
+Contenido de ejemplo:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/dsd5171006/daq.git
-git branch -M main
-git push -uf origin main
+SOLAR_DAQ_INFLUX_URL=http://<host_influx>
+SOLAR_DAQ_INFLUX_TOKEN=<token_privado>
+SOLAR_DAQ_INFLUX_ORG=<organizacion>
+SOLAR_DAQ_INFLUX_BUCKET=<bucket>
 ```
 
-## Integrate with your tools
+Guarda el archivo con permisos restringidos (`chmod 600`) y evita subirlo al repositorio.
+El servicio leerá automáticamente este archivo; si usas otra ruta, define `SOLAR_DAQ_ENV_FILE=/ruta/deseada.env` antes de ejecutar los scripts.
 
-- [ ] [Set up project integrations](https://gitlab.com/dsd5171006/daq/-/settings/integrations)
+#### 2.2 Setup Automatizado del Repositorio
+El script `setup_repo.sh` automatiza la instalación de dependencias, el copiado de scripts y la creación del servicio systemd.
 
-## Collaborate with your team
+```bash
+cd /home/pi/Desktop/DAQ
+sudo bash setup_repo.sh
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Este proceso ejecuta:
+- Copia de `bashScripts/*.sh` a `/home/pi/` con permisos de ejecución.
+- Instalación/actualización del entorno virtual en `./.venv` y de `requirements.txt`.
+- Creación del servicio `solar_daq.service` (systemd) con ejecución al arranque y sin reinicio automático tras un `pkill` manual.
 
-## Test and Deploy
+Puedes verificar su estado con:
 
-Use the built-in continuous integration in GitLab.
+```bash
+systemctl status solar_daq.service
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Para iniciar o detener el servicio manualmente:
 
-***
+```bash
+sudo systemctl start solar_daq.service
+sudo systemctl stop solar_daq.service
+```
 
-# Editing this README
+#### 3. Configuración de Scripts de Control
+```bash
+# Copiar scripts de bashContinue a /home/pi/
+cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/bashContinue/
+cp *.sh /home/pi/
+cd /home/pi/
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+# Hacer ejecutables
+chmod +x *.sh
+```
 
-## Suggestions for a good README
+#### 4. Configuración de Rclone (Opcional)
+```bash
+# Configurar Rclone para Google Drive
+rclone config
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Crear tarea cron para sincronización
+crontab -e
+# Añadir: */1 * * * * rclone copy /home/pi/Desktop/Mediciones/ gdrive:Mediciones_RaspberryPi/
+```
 
-## Name
-Choose a self-explaining name for your project.
+### Operación del Sistema
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+#### Inicio del Sistema
+```bash
+# Opción 1: Inicio manual
+cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
+source venv/bin/activate
+python implementacion.py
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Opción 2: Usando script de control
+/home/pi/start_solar_daq.sh
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Opción 3: Inicio automático
+/home/pi/start_daq_autostart.sh &
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+#### Panel de Control Interactivo
+```bash
+# Ejecutar panel de control
+/home/pi/control_solar_daq.sh
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+**Opciones del Panel:**
+- **Ver output en tiempo real** - Monitoreo live de mediciones
+- **Ver últimas líneas** - Revisión rápida de estado  
+- **Buscar errores** - Diagnóstico de problemas
+- **Estadísticas** - Información de archivos de datos
+- **Reiniciar/Detener** - Control del sistema
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+#### Monitoreo Individual de Sensores
+```bash
+cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
+source venv/bin/activate
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+# Monitor de sensores INA228
+python ina228_monitor.py
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# Monitor de termistores  
+python thermistor_monitor.py
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# Monitor de irradiancia
+python irradiance_monitor.py
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# Estación meteorológica completa
+python weather_kit_monitor.py
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+# Dashboard en tiempo real
+python gauge.py
+```
 
-## License
-For open source projects, say how it is licensed.
+### Gestión de Datos
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+#### Estructura de Archivos
+```
+/home/pi/Desktop/Mediciones/
+├── data_20241201_040000.csv  # Archivo diario
+├── data_20241202_040000.csv
+└── ...
+```
+
+#### Formato CSV
+```
+V0[V],V1[V],I0[A],I1[A],P0[W],P1[W],E0[Wh],E1[Wh],Irr[W/m2],
+T0[°C],T1[°C],...,T19[°C],Rain[mm],Wind_Speed[m/s],Wind_Direction,
+DHT_HUM[%],DHT_TEMP[°C],DateTime
+```
+
+#### Respaldo y Recuperación
+- **Automático**: Sincronización a Google Drive cada minuto
+- **Manual**: Copiar archivos desde `/home/pi/Desktop/Mediciones/`
+- **Recuperación**: El sistema recupera estado automáticamente tras reinicios
+
+### Resolución de Problemas
+
+#### Problemas Comunes
+
+**Sistema no inicia:**
+```bash
+# Verificar permisos
+chmod +x /home/pi/*.sh
+
+# Verificar entorno virtual
+cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
+source venv/bin/activate
+python -c "import RPi.GPIO, adafruit_ina228"
+```
+
+**Sensores no responden:**
+```bash
+# Verificar conexiones I2C
+i2cdetect -y 1
+
+# Debe mostrar: 0x40, 0x41 (INA228), 0x48 (ADS1115)
+```
+
+**Archivos CSV no se crean:**
+```bash
+# Verificar directorio
+mkdir -p /home/pi/Desktop/Mediciones/
+chmod 755 /home/pi/Desktop/Mediciones/
+
+# Verificar horario (sistema activo 5:00-18:00)
+date
+```
+
+#### Logs del Sistema
+```bash
+# Log principal
+tail -f /home/pi/implementacion_live_output.log
+
+# Log de autostart
+tail -f /home/pi/autostart_solar_daq.log
+
+# Log del sistema
+tail -f /home/pi/solar_daq.log
+```
+
+#### Reinicio Completo
+```bash
+# Detener procesos
+pkill -f implementacion.py
+
+# Limpiar GPIO
+python3 -c "import RPi.GPIO; RPi.GPIO.cleanup()"
+
+# Reiniciar sistema
+/home/pi/start_solar_daq.sh
+```
+
+### Mantenimiento
+
+#### Limpieza Periódica
+```bash
+# Limpiar logs antiguos (opcional)
+find /home/pi/ -name "*.log" -mtime +7 -delete
+
+# Verificar espacio en disco
+df -h
+
+# Sincronización manual con Google Drive
+rclone sync /home/pi/Desktop/Mediciones/ gdrive:Mediciones_RaspberryPi/
+```
+
+#### Actualización del Sistema
+```bash
+cd /home/pi/Desktop/solar_panels_daq/
+git pull origin main
+
+# Reiniciar sistema tras actualizaciones
+pkill -f implementacion.py
+/home/pi/start_solar_daq.sh
+```
+
+### Especificaciones Técnicas
+
+#### Precisión de Mediciones
+- **Voltaje**: ±0.01% (INA228)
+- **Corriente**: ±0.5% (INA228 + shunt 2mΩ)
+- **Temperatura**: ±0.5°C (termistores NTC)
+- **Irradiancia**: Calibración 1000W/m² = 75mV
+- **Precipitación**: 0.2794 mm por pulso
+
+#### Rangos de Operación
+- **Voltaje**: 0-40V DC por canal
+- **Corriente**: 0-1.5A por canal  
+- **Temperatura**: -10°C a +70°C
+- **Humedad**: 0-100% RH
+- **Viento**: 0-50 m/s
+
+#### Consumo de Energía
+- **Raspberry Pi 4**: ~3W promedio
+- **Sensores**: ~0.5W total
+- **Sistema completo**: <4W
+
+## Autores
+Este proyecto fue desarrollado por:
+- **Maickol A. Fernandez Obando**
+- **Pablo J. Navarro Robles**
+- **Vladimir Gonzalez Morera**
+- **Jordi Perez Barquero**
+
+Realizado en el **Instituto Tecnológico de Costa Rica** para el curso **Taller de Circuitos Electrónicos para Sistemas Energéticos**.
+
+## Licencia
+Este proyecto está bajo la licencia MIT. Puedes modificarlo y distribuirlo libremente, siempre que se dé crédito a los autores originales.
+
+## Contacto
+Para cualquier consulta o colaboración, puedes contactar a los autores a través del Instituto Tecnológico de Costa Rica.
