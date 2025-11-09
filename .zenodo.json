@@ -23,14 +23,5 @@
     "irradiance sensor",
     "power monitoring"
   ],
-  "related_identifiers": [
-    {
-      "relation": "isSupplementTo",
-      "identifier": "YOUR_PAPER_DOI_HERE",
-      "scheme": "doi"
-    }
-  ],
-  "language": "spa",
-  "grants": [],
-  "references": []
+  "language": "spa"
 }
