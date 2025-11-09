@@ -377,7 +377,10 @@ pkill -f implementacion.py
 - **Sistema completo**: <4W
 
 ## Autor
-Este proyecto fue desarrollado por **Maickol A. Fernandez Obando** en el **Instituto Tecnológico de Costa Rica** para el curso **Taller de Circuitos Electrónicos para Sistemas Energéticos**.
+Este proyecto fue desarrollado por **Maickol A. Fernández Obando** en el **Instituto Tecnológico de Costa Rica**, como parte del curso **EL-5617 Trabajo Final de Graduación**, para optar por el grado de **Licenciatura en Ingeniería Electrónica**.
+
+
+
 
 ## Cómo Citar este Trabajo
 
