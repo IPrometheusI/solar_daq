@@ -8,6 +8,8 @@ authors:
     given-names: "Maickol A."
     affiliation: "Instituto Tecnológico de Costa Rica"
 repository-code: "https://github.com/IPrometheusI/solar_daq"
+url: "https://doi.org/10.5281/zenodo.17563420"
+doi: "10.5281/zenodo.17563420"
 keywords:
   - "data acquisition"
   - "solar panels"
@@ -20,5 +22,5 @@ keywords:
   - "renewable energy"
   - "photovoltaic"
 license: MIT
-version: "1.0.0"
+version: "1.0.1"
 date-released: 2025-11-09

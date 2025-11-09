@@ -1,7 +1,7 @@
 # Sistema de Adquisición de Datos para Paneles Solares
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17563420.svg)](https://doi.org/10.5281/zenodo.17563420)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -392,9 +392,9 @@ Si utilizas este software en tu investigación o proyecto, por favor cítalo usa
   title        = {Sistema de Adquisición de Datos para Paneles Solares},
   year         = 2024,
   publisher    = {Zenodo},
-  version      = {v1.0.0},
-  doi          = {10.5281/zenodo.XXXXXXX},
-  url          = {https://doi.org/10.5281/zenodo.XXXXXXX}
+  version      = {v1.0.1},
+  doi          = {10.5281/zenodo.17563420},
+  url          = {https://doi.org/10.5281/zenodo.17563420}
 }
 ```
 
