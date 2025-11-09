@@ -1,5 +1,10 @@
 # Sistema de Adquisición de Datos para Paneles Solares
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 ## Descripción del Proyecto
 Este proyecto implementa un sistema completo de adquisición de datos (DAQ) para el monitoreo de variables eléctricas y ambientales de dos paneles solares. El sistema utiliza una **Raspberry Pi 4** como controlador principal y realiza mediciones cada minuto durante horario operativo (5:00 AM - 6:00 PM).
 
@@ -371,17 +376,32 @@ pkill -f implementacion.py
 - **Sensores**: ~0.5W total
 - **Sistema completo**: <4W
 
-## Autores
-Este proyecto fue desarrollado por:
-- **Maickol A. Fernandez Obando**
-- **Pablo J. Navarro Robles**
-- **Vladimir Gonzalez Morera**
-- **Jordi Perez Barquero**
+## Autor
+Este proyecto fue desarrollado por **Maickol A. Fernandez Obando** en el **Instituto Tecnológico de Costa Rica** para el curso **Taller de Circuitos Electrónicos para Sistemas Energéticos**.
 
-Realizado en el **Instituto Tecnológico de Costa Rica** para el curso **Taller de Circuitos Electrónicos para Sistemas Energéticos**.
+## Cómo Citar este Trabajo
+
+Si utilizas este software en tu investigación o proyecto, por favor cítalo usando el DOI de Zenodo:
+
+```bibtex
+@software{fernandez_obando_2024_solar_daq,
+  author       = {Fernandez Obando, Maickol A.},
+  title        = {Sistema de Adquisición de Datos para Paneles Solares},
+  year         = 2024,
+  publisher    = {Zenodo},
+  version      = {v1.0.0},
+  doi          = {10.5281/zenodo.XXXXXXX},
+  url          = {https://doi.org/10.5281/zenodo.XXXXXXX}
+}
+```
+
+También puedes citar directamente usando el archivo `CITATION.cff` incluido en este repositorio.
 
 ## Licencia
-Este proyecto está bajo la licencia MIT. Puedes modificarlo y distribuirlo libremente, siempre que se dé crédito a los autores originales.
+
+Este proyecto está licenciado bajo la **Licencia MIT** - ver el archivo [LICENSE](LICENSE) para más detalles.
+
+Copyright (c) 2024 Maickol A. Fernandez Obando
 
 ## Contacto
-Para cualquier consulta o colaboración, puedes contactar a los autores a través del Instituto Tecnológico de Costa Rica.
+Para cualquier consulta o colaboración, puedes contactar al autor a través del Instituto Tecnológico de Costa Rica.

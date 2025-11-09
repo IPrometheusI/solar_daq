@@ -18,3 +18,8 @@ influxdb-client
 # numpy
 # matplotlib
 # pandas
+
+# Code quality tools (for development)
+black>=24.0.0
+isort>=5.13.0
+flake8>=7.0.0

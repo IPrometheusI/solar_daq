@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "Si usas este software, por favor cítalo de la siguiente manera."
+type: software
+title: "Sistema de Adquisición de Datos para Paneles Solares"
+abstract: "Sistema completo de adquisición de datos (DAQ) para el monitoreo de variables eléctricas y ambientales de paneles solares usando Raspberry Pi 4. Incluye sensores INA228 para mediciones de potencia, ADS1115 para señales analógicas, termistores, sensor de irradiancia Spektron 210, y estación meteorológica completa (temperatura, humedad, viento, precipitación)."
+authors:
+  - family-names: "Fernandez Obando"
+    given-names: "Maickol A."
+    affiliation: "Instituto Tecnológico de Costa Rica"
+repository-code: "https://github.com/YOUR_USERNAME/YOUR_REPO_NAME"
+keywords:
+  - "data acquisition"
+  - "solar panels"
+  - "Raspberry Pi"
+  - "INA228"
+  - "environmental monitoring"
+  - "weather station"
+  - "Python"
+  - "IoT"
+  - "renewable energy"
+  - "photovoltaic"
+license: MIT
+version: "1.0.0"
+date-released: 2024-11-09

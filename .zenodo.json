@@ -1,0 +1,36 @@
+{
+  "title": "Sistema de Adquisición de Datos para Paneles Solares",
+  "description": "Sistema completo de adquisición de datos (DAQ) para el monitoreo de variables eléctricas y ambientales de paneles solares usando Raspberry Pi 4. Incluye sensores INA228 para mediciones de potencia, ADS1115 para señales analógicas, termistores, sensor de irradiancia Spektron 210, y estación meteorológica completa (temperatura, humedad, viento, precipitación).",
+  "upload_type": "software",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Fernandez Obando, Maickol A.",
+      "affiliation": "Instituto Tecnológico de Costa Rica"
+    }
+  ],
+  "keywords": [
+    "data acquisition",
+    "solar panels",
+    "Raspberry Pi",
+    "INA228",
+    "environmental monitoring",
+    "weather station",
+    "Python",
+    "IoT",
+    "renewable energy",
+    "photovoltaic",
+    "irradiance sensor",
+    "power monitoring"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "YOUR_PAPER_DOI_HERE",
+      "scheme": "doi"
+    }
+  ],
+  "language": "spa",
+  "grants": [],
+  "references": []
+}
