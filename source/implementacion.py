@@ -171,7 +171,7 @@ dht_temps = deque(maxlen=12)
 dht_hums = deque(maxlen=12)
 VCC = 3.294
 wind_speeds_second = deque(maxlen=60)
-thermistor_readings = {f"T{i}": deque(maxlen=60) for i in range(20)}
+thermistor_readings = {f"T{i}": deque(maxlen=12) for i in range(20)}
 
 # Control variables
 data_lock = threading.Lock()
