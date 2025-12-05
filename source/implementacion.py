@@ -13,8 +13,6 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from datetime import datetime
-from datetime import time as dt_time
-from datetime import timedelta
 
 import adafruit_ads1x15.ads1115 as ADS
 import adafruit_dht
@@ -23,6 +21,8 @@ import busio
 import RPi.GPIO as GPIO
 from adafruit_ads1x15.analog_in import AnalogIn
 from adafruit_ina228 import INA228
+from gpiozero import Button, Device
+from gpiozero.pins.pigpio import PiGPIOFactory
 
 hardware_lock = threading.Lock()
 
@@ -31,6 +31,7 @@ try:
     from influxdb_sender import (
         close_influxdb,
         init_influxdb,
+        periodic_health_check,
         send_measurement_to_influx,
     )
 
@@ -38,9 +39,6 @@ try:
 except ImportError:
     print("InfluxDB módulo no disponible - solo guardará en CSV")
     INFLUX_AVAILABLE = False
-
-from gpiozero import Button, Device
-from gpiozero.pins.pigpio import PiGPIOFactory
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -50,6 +48,9 @@ Device.pin_factory = PiGPIOFactory()
 # Estado y configuración
 STATE_FILE = "/home/pi/Desktop/sensor_system_state.json"
 BACKUP_STATE_FILE = "/home/pi/Desktop/sensor_system_state_backup.json"
+
+# Energy offset tracking (para recuperación después de reinicios)
+energy_offset = {0x40: 0.0, 0x41: 0.0}
 
 # INA228 Configuration
 RSHUNT_OHMS = 0.002
@@ -71,7 +72,7 @@ MAX_CONSECUTIVE_ERRORS = 10
 # GPIO Configuration
 try:
     GPIO.cleanup()
-except:
+except Exception:
     pass
 
 GPIO.setmode(GPIO.BCM)
@@ -349,7 +350,7 @@ def setup_ina228(i2c, address):
 
         return s
 
-    except Exception as e:
+    except Exception:
         raise
 
 
@@ -738,7 +739,6 @@ def read_dht22():
         return None, None
 
 
-# ======================== FUNCIÓN read_ina228 CORREGIDA ========================
 ###################################
 # read_ina228
 # Argumentos: address (int) - Dirección I2C, name (str) - Nombre del sensor
@@ -805,7 +805,6 @@ def read_ina228(address, name):
     }
 
 
-# ======================== FUNCIÓN read_irradiance_internal CORREGIDA ========================
 ###################################
 # read_irradiance_internal
 # Argumentos: Ninguno
@@ -856,12 +855,12 @@ def read_irradiance_internal():
 
 ###################################
 # validate_ina228_data
-# Argumentos: ina_data (dict o None) - Datos del sensor INA228
+# Argumentos: ina_data (dict o None) - Datos del sensor INA228, address (int) - Dirección I2C del sensor
 # Return: dict - Diccionario con valores validados (voltage, current, power, energy)
-# Descripcion: Valida y sanitiza datos de INA228 asegurando que no haya valores None
+# Descripcion: Valida y sanitiza datos de INA228 asegurando que no haya valores None, aplica offset de energía
 ###################################
-def validate_ina228_data(ina_data):
-    """Valida datos de INA228 y retorna valores seguros"""
+def validate_ina228_data(ina_data, address=None):
+    """Valida datos de INA228 y retorna valores seguros con offset de energía"""
     if not ina_data or not isinstance(ina_data, dict):
         return {"voltage": 0.0, "current": 0.0, "power": 0.0, "energy": 0.0}
 
@@ -877,6 +876,10 @@ def validate_ina228_data(ina_data):
     energy_raw = ina_data.get("energy", 0.0)
     energy_raw = energy_raw if energy_raw is not None else 0.0
     energy = energy_raw / 3600.0  # Convertir a Wh
+
+    # Aplicar offset de energía recuperado (si existe)
+    if address is not None and address in energy_offset:
+        energy += energy_offset[address]
 
     return {"voltage": voltage, "current": current, "power": power, "energy": energy}
 
@@ -901,10 +904,27 @@ def calculate_average(data_list):
 # Descripcion: Guarda estado actual del sistema en archivos JSON principal y backup
 ###################################
 def save_system_state():
-    global current_csv_file, measuring_active, last_file_creation_day, rain_count_total, system_start_time, file_recording_active
-
     try:
         now = datetime.now()
+
+        # Leer valores actuales de energía de los sensores INA228
+        current_energy = {}
+        for address, sensor in ina_sensors.items():
+            if sensor is not None:
+                try:
+                    energy_raw = getattr(sensor, "energy", 0.0)
+                    if energy_raw is not None:
+                        # Guardar energía total (acumulador + offset)
+                        current_energy[f"0x{address:02X}"] = (
+                            energy_raw / 3600.0
+                        ) + energy_offset.get(address, 0.0)
+                    else:
+                        current_energy[f"0x{address:02X}"] = energy_offset.get(
+                            address, 0.0
+                        )
+                except Exception:
+                    current_energy[f"0x{address:02X}"] = energy_offset.get(address, 0.0)
+
         state = {
             "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
             "current_csv_file": current_csv_file,
@@ -916,6 +936,7 @@ def save_system_state():
             "rain_count_total": rain_count_total,
             "system_start_time": system_start_time,
             "file_creation_time": None,
+            "energy_accumulated": current_energy,  # Guardar energía acumulada
         }
 
         if current_csv_file and os.path.exists(current_csv_file):
@@ -1007,7 +1028,7 @@ def should_continue_with_existing_file(state):
 # Descripcion: Restaura variables globales del sistema desde estado guardado
 ###################################
 def restore_system_state(state):
-    global current_csv_file, measuring_active, last_file_creation_day, rain_count_total, system_start_time, file_recording_active
+    global current_csv_file, measuring_active, last_file_creation_day, rain_count_total, system_start_time, file_recording_active, energy_offset  # noqa: F824
 
     try:
         current_csv_file = state.get("current_csv_file")
@@ -1021,6 +1042,19 @@ def restore_system_state(state):
             system_start_time = saved_start_time
         else:
             system_start_time = time.time()
+
+        # Recuperar valores de energía acumulada
+        energy_accumulated = state.get("energy_accumulated", {})
+        if energy_accumulated:
+            print("Recuperando valores de energía acumulada:")
+            for addr_str, energy_value in energy_accumulated.items():
+                # Convertir string "0x40" a int
+                try:
+                    address = int(addr_str, 16)
+                    energy_offset[address] = energy_value
+                    print(f"  INA228 @ {addr_str}: {energy_value:.4f} Wh")
+                except Exception:
+                    pass
 
         return True
 
@@ -1100,7 +1134,11 @@ def check_and_create_missing_file():
         return False
 
     try:
-        if create_csv_file():
+        # Determinar si debemos resetear energía (solo para nuevo día real)
+        # Si last_file_creation_day != current_day significa que es un nuevo día
+        reset_energy = last_file_creation_day != current_day
+
+        if create_csv_file(reset_energy=reset_energy):
             return True
         else:
             return False
@@ -1149,8 +1187,6 @@ def initialize_system_with_enhanced_recovery():
 # Descripcion: Verifica integridad del sistema y crea archivos faltantes durante bucle principal
 ###################################
 def enhanced_main_loop_check():
-    global last_file_creation_day, current_csv_file, file_recording_active
-
     now = datetime.now()
     current_minute = now.minute
 
@@ -1285,8 +1321,8 @@ def print_detailed_measurement():
 # Return: bool - True si creación exitosa, False si falla
 # Descripcion: Crea nuevo archivo CSV diario con encabezados completos
 ###################################
-def create_csv_file():
-    global current_csv_file, rain_count_total, file_recording_active
+def create_csv_file(reset_energy=True):
+    global current_csv_file, rain_count_total, file_recording_active, energy_offset
 
     now = datetime.now()
     filename = f"data_{now.strftime('%Y%m%d_%H%M%S')}.csv"
@@ -1326,21 +1362,29 @@ def create_csv_file():
 
             writer.writerow(header)
 
-        # Reset daily counters
-        rain_count_total = 0
+        # Reset daily counters only if this is a new day
+        if reset_energy:
+            rain_count_total = 0
 
-        # Reset energy accumulators in INA228 sensors for daily start
-        print("Reseteando acumuladores de energía para nuevo día...")
-        for address, sensor in ina_sensors.items():
-            if sensor is not None:
-                try:
-                    if hasattr(sensor, "reset_accumulators"):
-                        sensor.reset_accumulators()
-                        print(f"✓ Energía reseteada en INA228 @ 0x{address:02X}")
-                except Exception as e:
-                    print(
-                        f"⚠ Error reseteando energía en INA228 @ 0x{address:02X}: {e}"
-                    )
+            # Reset energy accumulators in INA228 sensors for daily start
+            print("Reseteando acumuladores de energía para nuevo día...")
+            for address, sensor in ina_sensors.items():
+                if sensor is not None:
+                    try:
+                        if hasattr(sensor, "reset_accumulators"):
+                            sensor.reset_accumulators()
+                            print(f"✓ Energía reseteada en INA228 @ 0x{address:02X}")
+                    except Exception as e:
+                        print(
+                            f"⚠ Error reseteando energía en INA228 @ 0x{address:02X}: {e}"
+                        )
+
+            # Reset energy offsets for new day
+            energy_offset = {0x40: 0.0, 0x41: 0.0}
+        else:
+            print(
+                "Continuando con valores de energía recuperados (no se resetean acumuladores)"
+            )
 
         file_recording_active = True
         print(f"Archivo creado: {filename}")
@@ -1352,7 +1396,6 @@ def create_csv_file():
         return False
 
 
-# ======================== FUNCIÓN record_measurement CORREGIDA ========================
 ###################################
 # record_measurement
 # Argumentos: Ninguno
@@ -1361,7 +1404,7 @@ def create_csv_file():
 ###################################
 def record_measurement():
     """Registra una medición con validación completa de None"""
-    global current_csv_file, file_recording_active, rain_count, terminal_rain_count
+    global rain_count
 
     now = datetime.now()
 
@@ -1398,7 +1441,7 @@ def record_measurement():
             print("[MAIN] Lock adquirido para hardware completo")
 
             # Leer TODOS los sensores ADS1115 de una vez
-            temps = read_thermistors_internal()  # SIN mutex interno
+            temps = read_thermistors_internal()  # noqa: F841 - SIN mutex interno
             irradiance_v, irradiance = read_irradiance_internal()  # SIN mutex interno
             wind_angle, wind_dir = get_wind_direction_internal()  # SIN mutex interno
 
@@ -1406,8 +1449,8 @@ def record_measurement():
 
         # PASO 3: Procesar datos sin hardware - CON VALIDACIÓN COMPLETA DE None
         # INA228 datos (sensor 1 = 0x40, sensor 2 = 0x41)
-        ina1_validated = validate_ina228_data(ina_data.get(0x40))
-        ina2_validated = validate_ina228_data(ina_data.get(0x41))
+        ina1_validated = validate_ina228_data(ina_data.get(0x40), address=0x40)
+        ina2_validated = validate_ina228_data(ina_data.get(0x41), address=0x41)
 
         # Extraer valores validados
         v0 = ina1_validated["voltage"]
@@ -1448,7 +1491,8 @@ def record_measurement():
 
             if not os.path.exists(current_csv_file):
                 print("Archivo CSV no existe, creando...")
-                if not create_csv_file():
+                # No resetear energía - archivo desapareció durante operación
+                if not create_csv_file(reset_energy=False):
                     return False
 
             with open(current_csv_file, "a", newline="", encoding="utf-8") as file:
@@ -1550,13 +1594,13 @@ def record_measurement():
         print(f"[MAIN] ERROR en record_measurement: {e}")
         # DEBUG EXTRA: Mostrar variables problemáticas
         try:
-            print(f"[DEBUG] Estado de variables críticas:")
+            print("[DEBUG] Estado de variables críticas:")
             print(f"  rain_count: {rain_count} (tipo: {type(rain_count)})")
             print(f"  irradiance: {irradiance} (tipo: {type(irradiance)})")
-            print(f"  ina1_data: {ina1_data}")
-            print(f"  ina2_data: {ina2_data}")
-        except:
-            print("[DEBUG] Error mostrando estado de variables")
+            print(f"  ina1_validated: {ina1_validated}")
+            print(f"  ina2_validated: {ina2_validated}")
+        except Exception as e_debug:
+            print(f"[DEBUG] Error mostrando estado de variables: {e_debug}")
 
         return False
 
@@ -1607,7 +1651,7 @@ def is_valid_temperature(temp):
 # Descripcion: Hilo secundario para lectura continua de sensores ambientales
 ###################################
 def measurement_thread():
-    global wind_speeds_second, last_watchdog
+    global last_watchdog
 
     dht_counter = 0
     last_thermistor_read = 0
@@ -1657,7 +1701,7 @@ def measurement_thread():
 # Descripcion: Función principal del sistema, controla bucle principal y manejo de errores
 ###################################
 def main():
-    global running, measuring_active, last_file_creation_day, last_measurement_minute
+    global running, last_file_creation_day, last_measurement_minute
 
     print("=" * 120)
     print(" " * 40 + "SISTEMA DE ADQUISICION DE DATOS SOLAR")
@@ -1683,6 +1727,8 @@ def main():
     consecutive_errors = 0
     last_minute_processed = -1
     last_hour_processed = -1
+    last_influx_health_check = time.time()
+    INFLUX_HEALTH_CHECK_INTERVAL = 3600  # Chequear cada 1 hora
 
     try:
         print("Sistema iniciado")
@@ -1703,6 +1749,23 @@ def main():
                 current_hour = now.hour
                 current_minute = now.minute
 
+                # Chequeo periódico de salud de InfluxDB (cada hora)
+                current_time = time.time()
+                if (
+                    influx_initialized
+                    and INFLUX_AVAILABLE
+                    and (current_time - last_influx_health_check)
+                    >= INFLUX_HEALTH_CHECK_INTERVAL
+                ):
+                    print(
+                        f"[{now.strftime('%H:%M:%S')}] Ejecutando chequeo de salud InfluxDB..."
+                    )
+                    try:
+                        periodic_health_check()
+                    except Exception as e:
+                        print(f"Error en chequeo de salud InfluxDB: {e}")
+                    last_influx_health_check = current_time
+
                 # Check for missing files every 5 minutes
                 if loop_counter % 300 == 0:
                     loop_status = enhanced_main_loop_check()
@@ -1717,7 +1780,8 @@ def main():
 
                     print(f"[{now.strftime('%H:%M:%S')}] Creando archivo diario")
                     try:
-                        if create_csv_file():
+                        # Nuevo día - resetear energía
+                        if create_csv_file(reset_energy=True):
                             last_file_creation_day = current_day
                             last_measurement_minute = -1
                             consecutive_errors = 0
@@ -1746,7 +1810,7 @@ def main():
                             last_minute_processed = current_minute
                             measurement_start = time.time()
                             success = record_measurement()
-                            measurement_time = time.time() - measurement_start
+                            measurement_time = time.time() - measurement_start  # noqa: F841
 
                             if success:
                                 last_measurement_minute = current_minute
