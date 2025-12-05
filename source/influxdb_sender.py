@@ -1,88 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
 import os
 import threading
+import time
 from datetime import datetime
-from pathlib import Path
 
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Configuración InfluxDB
-ENV_VAR_MAP = {
-    "url": "SOLAR_DAQ_INFLUX_URL",
-    "token": "SOLAR_DAQ_INFLUX_TOKEN",
-    "org": "SOLAR_DAQ_INFLUX_ORG",
-    "bucket": "SOLAR_DAQ_INFLUX_BUCKET",
+# IMPORTANTE: Configurar variables de entorno o editar estos valores
+INFLUX_CONFIG = {
+    "url": os.getenv("INFLUX_URL", "http://your-influxdb-server.com"),
+    "token": os.getenv("INFLUX_TOKEN", "your-influxdb-token-here"),
+    "org": os.getenv("INFLUX_ORG", "your-org"),
+    "bucket": os.getenv("INFLUX_BUCKET", "your-bucket"),
+    "timeout": 10000,  # 10 segundos timeout en milisegundos
 }
-
-ENV_FILE_CANDIDATES = [
-    os.environ.get("SOLAR_DAQ_ENV_FILE"),
-    "/home/pi/.config/solar_daq.env",
-]
-
-INFLUX_CONFIG = {}
-
-
-def _load_env_from_file():
-    """Carga variables desde archivos estilo KEY=VALUE si existen."""
-    for candidate in ENV_FILE_CANDIDATES:
-        if not candidate:
-            continue
-        path = Path(candidate).expanduser()
-        if not path.exists() or not path.is_file():
-            continue
-
-        try:
-            with path.open("r", encoding="utf-8") as env_file:
-                for line in env_file:
-                    stripped = line.strip()
-                    if not stripped or stripped.startswith("#"):
-                        continue
-
-                    if "=" not in stripped:
-                        continue
-
-                    key, value = stripped.split("=", 1)
-                    key = key.strip()
-                    if not key or key in os.environ:
-                        continue
-                    os.environ[key] = value.strip()
-        except OSError as exc:
-            logging.warning(
-                "No se pudo leer archivo de configuración %s: %s",
-                path,
-                exc,
-            )
-
-
-def _load_influx_config():
-    """Obtiene configuración de InfluxDB desde variables de entorno."""
-    config = {}
-    missing = []
-
-    for key, env_var in ENV_VAR_MAP.items():
-        value = os.getenv(env_var)
-        if value:
-            config[key] = value
-        else:
-            missing.append(env_var)
-
-    if missing:
-        logging.error(
-            "Faltan variables de entorno para InfluxDB: %s",
-            ", ".join(missing),
-        )
-        print(
-            "✗ Configuración InfluxDB incompleta. Define las variables: "
-            + ", ".join(missing)
-        )
-        return None
-
-    return config
-
 
 # Lock para thread safety
 influx_lock = threading.Lock()
@@ -91,44 +26,62 @@ influx_lock = threading.Lock()
 influx_client = None
 write_api = None
 
+# Variables de control para monitoreo de salud
+last_successful_write = None
+consecutive_failures = 0
+connection_init_time = None
+MAX_CONSECUTIVE_FAILURES = 5
+CONNECTION_REFRESH_HOURS = 12  # Renovar conexión cada 12 horas
+
 
 ###################################
 # init_influxdb
-# Argumentos: Ninguno
+# Argumentos: force_reconnect (bool) - Forzar cierre de conexión existente antes de reconectar
 # Return: bool - True si inicialización exitosa, False si falla
-# Descripcion: Inicializa cliente InfluxDB y API de escritura
+# Descripcion: Inicializa cliente InfluxDB y API de escritura con timeout y manejo robusto
 ###################################
-def init_influxdb():
-    global influx_client, write_api, INFLUX_CONFIG
+def init_influxdb(force_reconnect=False):
+    global influx_client, write_api, consecutive_failures, connection_init_time, last_successful_write
 
-    _load_env_from_file()
-    config = _load_influx_config()
-    if config is None:
-        return False
-
-    INFLUX_CONFIG.clear()
-    INFLUX_CONFIG.update(config)
+    # Si force_reconnect, cerrar conexión existente primero
+    if force_reconnect and (influx_client is not None or write_api is not None):
+        print("🔄 Forzando cierre de conexión InfluxDB existente...")
+        try:
+            close_influxdb()
+        except Exception as e:
+            print(f"Advertencia cerrando conexión previa: {e}")
+        time.sleep(2)  # Esperar a que se liberen recursos
 
     try:
+        # Crear cliente con timeout configurado
         influx_client = InfluxDBClient(
             url=INFLUX_CONFIG["url"],
             token=INFLUX_CONFIG["token"],
             org=INFLUX_CONFIG["org"],
+            timeout=INFLUX_CONFIG["timeout"],
         )
 
         write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-        # Test conexión
+        # Test conexión con timeout
         health = influx_client.health()
         if health.status == "pass":
-            print("✓ InfluxDB conectado correctamente")
+            connection_init_time = time.time()
+            consecutive_failures = 0
+            last_successful_write = time.time()
+            print(
+                f"✓ InfluxDB conectado correctamente (timeout: {INFLUX_CONFIG['timeout']}ms)"
+            )
             return True
         else:
             print(f"✗ InfluxDB health check falló: {health.status}")
+            close_influxdb()
             return False
 
     except Exception as e:
         print(f"✗ Error inicializando InfluxDB: {e}")
+        influx_client = None
+        write_api = None
         return False
 
 
@@ -144,11 +97,71 @@ def close_influxdb():
     try:
         if write_api:
             write_api.close()
+            write_api = None
         if influx_client:
             influx_client.close()
+            influx_client = None
         print("✓ InfluxDB desconectado")
     except Exception as e:
         print(f"Error cerrando InfluxDB: {e}")
+
+
+###################################
+# check_connection_health
+# Argumentos: Ninguno
+# Return: bool - True si conexión está saludable, False si no
+# Descripcion: Verifica el estado de salud de la conexión InfluxDB
+###################################
+def check_connection_health():
+    if not influx_client:
+        return False
+
+    try:
+        health = influx_client.health()
+        return health.status == "pass"
+    except Exception as e:
+        print(f"⚠ Health check falló: {e}")
+        return False
+
+
+###################################
+# needs_connection_refresh
+# Argumentos: Ninguno
+# Return: bool - True si la conexión necesita renovarse
+# Descripcion: Determina si la conexión debe renovarse por antigüedad
+###################################
+def needs_connection_refresh():
+    if connection_init_time is None:
+        return True
+
+    hours_since_init = (time.time() - connection_init_time) / 3600
+    return hours_since_init >= CONNECTION_REFRESH_HOURS
+
+
+###################################
+# auto_recover_connection
+# Argumentos: Ninguno
+# Return: bool - True si recuperación exitosa, False si falla
+# Descripcion: Intenta recuperar automáticamente la conexión InfluxDB
+###################################
+def auto_recover_connection():
+    print("🔧 Intentando recuperar conexión InfluxDB...")
+
+    # Intentar reconexión con 3 intentos
+    for attempt in range(3):
+        try:
+            if init_influxdb(force_reconnect=True):
+                print(f"✓ Conexión recuperada en intento {attempt + 1}")
+                return True
+            else:
+                print(f"✗ Intento {attempt + 1} falló")
+                time.sleep(5)  # Esperar entre intentos
+        except Exception as e:
+            print(f"✗ Error en intento {attempt + 1}: {e}")
+            time.sleep(5)
+
+    print("✗ No se pudo recuperar la conexión después de 3 intentos")
+    return False
 
 
 ###################################
@@ -239,31 +252,119 @@ def create_measurement_point(measurement_data):
 # send_measurement_to_influx
 # Argumentos: measurement_data (dict) - Datos de medición
 # Return: bool - True si envío exitoso, False si falla
-# Descripcion: Envía datos de medición a InfluxDB con manejo de errores
+# Descripcion: Envía datos de medición a InfluxDB con recuperación automática
 ###################################
 def send_measurement_to_influx(measurement_data):
-    global influx_client, write_api
+    global consecutive_failures, last_successful_write
+
+    # Verificar si necesitamos refrescar la conexión por antigüedad
+    if needs_connection_refresh():
+        print("⏰ Conexión InfluxDB antigua - refrescando preventivamente...")
+        auto_recover_connection()
 
     if not influx_client or not write_api:
-        print("InfluxDB no inicializado")
-        return False
-    if not INFLUX_CONFIG:
-        print("Configuración InfluxDB no disponible")
-        return False
+        print("InfluxDB no inicializado - intentando reconectar...")
+        if not auto_recover_connection():
+            return False
 
     with influx_lock:
         try:
             point = create_measurement_point(measurement_data)
             if point is None:
+                consecutive_failures += 1
                 return False
 
             write_api.write(INFLUX_CONFIG["bucket"], INFLUX_CONFIG["org"], point)
+
+            # Actualizar estado de éxito
+            last_successful_write = time.time()
+            consecutive_failures = 0
             print("✓ Datos enviados a InfluxDB")
             return True
 
         except Exception as e:
-            print(f"✗ Error enviando datos a InfluxDB: {e}")
+            consecutive_failures += 1
+            print(
+                f"✗ Error enviando datos a InfluxDB (fallo #{consecutive_failures}): {e}"
+            )
+
+            # Si tenemos muchos fallos consecutivos, intentar recuperar conexión
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                print(
+                    f"⚠ {consecutive_failures} fallos consecutivos - iniciando recuperación automática..."
+                )
+                if auto_recover_connection():
+                    # Reintentar el envío una vez después de recuperar
+                    try:
+                        point = create_measurement_point(measurement_data)
+                        if point:
+                            write_api.write(
+                                INFLUX_CONFIG["bucket"], INFLUX_CONFIG["org"], point
+                            )
+                            last_successful_write = time.time()
+                            consecutive_failures = 0
+                            print(
+                                "✓ Datos enviados exitosamente después de recuperación"
+                            )
+                            return True
+                    except Exception as retry_error:
+                        print(f"✗ Reintento falló: {retry_error}")
+
             return False
+
+
+###################################
+# get_connection_stats
+# Argumentos: Ninguno
+# Return: dict - Estadísticas de la conexión
+# Descripcion: Retorna información sobre el estado de la conexión
+###################################
+def get_connection_stats():
+    stats = {
+        "is_connected": influx_client is not None and write_api is not None,
+        "consecutive_failures": consecutive_failures,
+        "last_successful_write": last_successful_write,
+        "connection_init_time": connection_init_time,
+        "connection_age_hours": None,
+    }
+
+    if connection_init_time:
+        stats["connection_age_hours"] = (time.time() - connection_init_time) / 3600
+
+    return stats
+
+
+###################################
+# periodic_health_check
+# Argumentos: Ninguno
+# Return: bool - True si conexión está saludable o fue recuperada exitosamente
+# Descripcion: Chequeo periódico de salud que se debe llamar regularmente
+###################################
+def periodic_health_check():
+    global consecutive_failures
+
+    # Verificar si la conexión está inicializada
+    if not influx_client or not write_api:
+        print("⚠ Chequeo periódico: InfluxDB no inicializado")
+        return auto_recover_connection()
+
+    # Verificar salud de la conexión
+    if not check_connection_health():
+        print("⚠ Chequeo periódico: Conexión no saludable")
+        consecutive_failures += 1
+        return auto_recover_connection()
+
+    # Verificar si necesita refresco por antigüedad
+    if needs_connection_refresh():
+        print("⏰ Chequeo periódico: Conexión antigua, refrescando...")
+        return auto_recover_connection()
+
+    # Todo bien
+    stats = get_connection_stats()
+    print(
+        f"✓ Chequeo periódico InfluxDB: OK (edad: {stats['connection_age_hours']:.1f}h, fallos: {consecutive_failures})"
+    )
+    return True
 
 
 ###################################
