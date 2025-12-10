@@ -121,17 +121,17 @@ gpiozero                       # Interfaz GPIO simplificada
 ```bash
 # Clonar repositorio
 cd /home/pi/Desktop/
-git clone <repository-url> solar_panels_daq
+git clone <repository-url> solar_daq
 
 # Navegar al directorio de código
-cd solar_panels_daq/Proyecto_2/Codigo_PI_4/
+cd solar_daq/source/
 
 # Crear y activar entorno virtual
 python3 -m venv venv
 source venv/bin/activate
 
 # Instalar dependencias
-pip install -r requirements.txt
+pip install -r ../../requirements.txt
 ```
 
 #### 2.1 Configuración de Credenciales InfluxDB
@@ -181,18 +181,7 @@ sudo systemctl start solar_daq.service
 sudo systemctl stop solar_daq.service
 ```
 
-#### 3. Configuración de Scripts de Control
-```bash
-# Copiar scripts de bashContinue a /home/pi/
-cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/bashContinue/
-cp *.sh /home/pi/
-cd /home/pi/
-
-# Hacer ejecutables
-chmod +x *.sh
-```
-
-#### 4. Configuración de Rclone (Opcional)
+#### 3. Configuración de Rclone (Opcional)
 ```bash
 # Configurar Rclone para Google Drive
 rclone config
@@ -207,7 +196,7 @@ crontab -e
 #### Inicio del Sistema
 ```bash
 # Opción 1: Inicio manual
-cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
+cd /home/pi/Desktop/solar_daq/source/
 source venv/bin/activate
 python implementacion.py
 
@@ -233,13 +222,13 @@ python implementacion.py
 
 #### Monitoreo Individual de Sensores
 ```bash
-cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
-source venv/bin/activate
+cd /home/pi/Desktop/solar_daq/debugCodes/
+source ../source/venv/bin/activate
 
 # Monitor de sensores INA228
 python ina228_monitor.py
 
-# Monitor de termistores  
+# Monitor de termistores
 python thermistor_monitor.py
 
 # Monitor de irradiancia
@@ -284,7 +273,7 @@ DHT_HUM[%],DHT_TEMP[°C],DateTime
 chmod +x /home/pi/*.sh
 
 # Verificar entorno virtual
-cd /home/pi/Desktop/solar_panels_daq/Proyecto_2/Codigo_PI_4/
+cd /home/pi/Desktop/solar_daq/source/
 source venv/bin/activate
 python -c "import RPi.GPIO, adafruit_ina228"
 ```
@@ -347,7 +336,7 @@ rclone sync /home/pi/Desktop/Mediciones/ gdrive:Mediciones_RaspberryPi/
 
 #### Actualización del Sistema
 ```bash
-cd /home/pi/Desktop/solar_panels_daq/
+cd /home/pi/Desktop/solar_daq/
 git pull origin main
 
 # Reiniciar sistema tras actualizaciones

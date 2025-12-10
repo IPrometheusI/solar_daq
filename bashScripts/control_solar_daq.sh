@@ -47,7 +47,7 @@ print_status() {
 show_menu() {
     echo -e "${BLUE}OPCIONES:${NC}"
     echo "1) 👀 Ver output en tiempo real (tail -f)"
-    echo "2) 📜 Ver últimas 20 líneas"
+    echo "2) 📜 Ver últimas 200 líneas"
     echo "3) 🔍 Buscar errores en output"
     echo "4) 📊 Mostrar estadísticas del archivo"
     echo "5) 🚀 Ver log de autostart"
@@ -78,9 +78,9 @@ main() {
                 fi
                 ;;
             2)
-                echo -e "${GREEN}Últimas 20 líneas:${NC}"
+                echo -e "${GREEN}Últimas 200 líneas:${NC}"
                 if [ -f "$OUTPUT_LOG" ]; then
-                    tail -n 20 "$OUTPUT_LOG"
+                    tail -n 200 "$OUTPUT_LOG"
                 else
                     echo -e "${RED}Archivo de output no existe${NC}"
                 fi
