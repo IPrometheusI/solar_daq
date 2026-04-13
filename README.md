@@ -376,10 +376,10 @@ Este proyecto fue desarrollado por **Maickol A. Fernández Obando** en el **Inst
 Si utilizas este software en tu investigación o proyecto, por favor cítalo usando el DOI de Zenodo:
 
 ```bibtex
-@software{fernandez_obando_2024_solar_daq,
+@software{fernandez_obando_2025_solar_daq,
   author       = {Fernandez Obando, Maickol A.},
   title        = {Sistema de Adquisición de Datos para Paneles Solares},
-  year         = 2024,
+  year         = 2025,
   publisher    = {Zenodo},
   version      = {v1.0.1},
   doi          = {10.5281/zenodo.17563420},
