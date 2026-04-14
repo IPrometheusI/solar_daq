@@ -77,7 +77,7 @@ restart_system() {
 
 show_menu() {
     echo -e "${BLUE}OPCIONES:${NC}"
-    echo "1) 👀 Ver output en tiempo real (tail -f)"
+    echo "1) 👀 Monitoreo en tiempo real del DAQ"
     echo "2) 📜 Ver últimas 200 líneas"
     echo "3) 🔍 Buscar errores en output"
     echo "4) 📊 Mostrar estadísticas del archivo"
