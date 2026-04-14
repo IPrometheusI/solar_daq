@@ -4,11 +4,29 @@
 # Autor: Sistema Solar DAQ
 # Fecha: $(date)
 
-# Configuración de paths
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOG_FILE="/home/pi/solar_daq.log"
+
+# Función de logging
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+}
+
+RESOLVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve_project_root.sh"
+if [ ! -f "$RESOLVER_SCRIPT" ]; then
+    log_message "ERROR: No existe el helper $RESOLVER_SCRIPT"
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$RESOLVER_SCRIPT"
+
+PROJECT_ROOT="$(resolve_solar_daq_root)" || {
+    log_message "ERROR: No se pudo resolver la ruta del repositorio solar_daq"
+    exit 1
+}
+
 SCRIPT_DIR="$PROJECT_ROOT/source"
 PYTHON_SCRIPT="$SCRIPT_DIR/implementacion.py"
-LOG_FILE="/home/pi/solar_daq.log"
 
 # Detectar entorno virtual disponible
 VENV_PATH=""
@@ -18,11 +36,6 @@ for candidate in "$PROJECT_ROOT/.venv" "$SCRIPT_DIR/venv"; do
         break
     fi
 done
-
-# Función de logging
-log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
-}
 
 log_message "=== INICIANDO SISTEMA SOLAR DAQ ==="
 

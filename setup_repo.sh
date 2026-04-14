@@ -9,6 +9,7 @@ VENV_DIR="$PROJECT_ROOT/.venv"
 REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
 SERVICE_NAME="solar_daq.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
+PROJECT_ROOT_FILE="$TARGET_HOME/.config/solar_daq_project_root"
 
 info() {
     echo "[INFO] $*"
@@ -38,6 +39,11 @@ for script in "$BASH_SCRIPTS_DIR"/*.sh; do
     install -m 755 "$script" "$dest"
     info "Instalado $(basename "$script")"
 done
+
+info "Registrando ruta del proyecto en $PROJECT_ROOT_FILE"
+install -d -m 755 "$TARGET_HOME/.config"
+printf '%s\n' "$PROJECT_ROOT" > "$PROJECT_ROOT_FILE"
+chmod 644 "$PROJECT_ROOT_FILE"
 
 # Copiar archivos .desktop si existen
 for desktop_file in "$BASH_SCRIPTS_DIR"/*.desktop; do
@@ -87,7 +93,7 @@ setup_systemd_service() {
 
     info "Configurando servicio systemd ($SERVICE_NAME)"
     local service_content
-    service_content="[Unit]\nDescription=Solar DAQ startup wrapper\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nUser=pi\nWorkingDirectory=$PROJECT_ROOT\nEnvironment=SOLAR_DAQ_ENV_FILE=/home/pi/.config/solar_daq.env\nExecStart=/usr/bin/bash /home/pi/start_solar_daq.sh\nRestart=no\n\n[Install]\nWantedBy=multi-user.target\n"
+    service_content="[Unit]\nDescription=Solar DAQ startup wrapper\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nUser=pi\nWorkingDirectory=$PROJECT_ROOT\nEnvironment=SOLAR_DAQ_PROJECT_ROOT=$PROJECT_ROOT\nEnvironment=SOLAR_DAQ_ENV_FILE=/home/pi/.config/solar_daq.env\nExecStart=/usr/bin/bash /home/pi/start_solar_daq.sh\nRestart=no\n\n[Install]\nWantedBy=multi-user.target\n"
 
     if ! echo -e "$service_content" | $sudo_cmd tee "$SERVICE_PATH" >/dev/null; then
         warn "No se pudo escribir $SERVICE_PATH"

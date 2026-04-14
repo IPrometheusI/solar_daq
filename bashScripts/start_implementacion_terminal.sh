@@ -6,8 +6,20 @@
 # Esperar un poco para que el escritorio cargue completamente
 sleep 10
 
-# Configuración de paths
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RESOLVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve_project_root.sh"
+if [ ! -f "$RESOLVER_SCRIPT" ]; then
+    echo "[ERROR] No existe el helper $RESOLVER_SCRIPT" >&2
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$RESOLVER_SCRIPT"
+
+PROJECT_ROOT="$(resolve_solar_daq_root)" || {
+    echo "[ERROR] No se pudo resolver la ruta del repositorio solar_daq" >&2
+    exit 1
+}
+
 SCRIPT_DIR="$PROJECT_ROOT/source"
 PYTHON_SCRIPT="$SCRIPT_DIR/implementacion.py"
 
