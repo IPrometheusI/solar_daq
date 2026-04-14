@@ -45,14 +45,24 @@ install -d -m 755 "$TARGET_HOME/.config"
 printf '%s\n' "$PROJECT_ROOT" > "$PROJECT_ROOT_FILE"
 chmod 644 "$PROJECT_ROOT_FILE"
 
-# Copiar archivos .desktop si existen
-for desktop_file in "$BASH_SCRIPTS_DIR"/*.desktop; do
-    [ -e "$desktop_file" ] || continue
-    dest="$TARGET_HOME/$(basename "$desktop_file")"
-    install -m 644 "$desktop_file" "$dest"
-info "Instalado $(basename "$desktop_file")"
-
+info "Eliminando scripts obsoletos de $TARGET_HOME"
+for obsolete in \
+    "$TARGET_HOME/check_solar_daq.sh" \
+    "$TARGET_HOME/solar_daq_autostart.sh" \
+    "$TARGET_HOME/start_implementacion_terminal.sh" \
+    "$TARGET_HOME/start_logs_terminal.sh" \
+    "$TARGET_HOME/watch_implementacion.sh" \
+    "$TARGET_HOME/solar-daq.desktop"; do
+    if [ -e "$obsolete" ]; then
+        rm -f "$obsolete"
+        info "Eliminado $(basename "$obsolete")"
+    fi
 done
+
+if [ -e "$TARGET_HOME/.config/autostart/solar-daq.desktop" ]; then
+    rm -f "$TARGET_HOME/.config/autostart/solar-daq.desktop"
+    info "Eliminado solar-daq.desktop de ~/.config/autostart"
+fi
 
 info "Preparando entorno virtual en $VENV_DIR"
 if [ ! -d "$VENV_DIR" ]; then
