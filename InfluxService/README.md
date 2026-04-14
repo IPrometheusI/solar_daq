@@ -379,7 +379,7 @@ CSV_FOLDER = "ruta/a/tus/csvs"
 **Solución**:
 ```bash
 # Verifica conectividad
-ping influx.agrivoltaic.ecaslab.org
+ping tu-servidor-influxdb.com
 
 # Verifica el servidor InfluxDB está corriendo
 curl http://tu-servidor-influxdb.com/health
