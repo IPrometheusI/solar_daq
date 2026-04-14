@@ -11,8 +11,10 @@ import sys
 import time
 from datetime import datetime
 
-# Agregar path del directorio actual para importar influxdb_sender
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Agregar path de source/ para importar influxdb_sender
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), "source")
+sys.path.insert(0, SOURCE_DIR)
 
 try:
     from influxdb_sender import (
@@ -29,10 +31,10 @@ except ImportError as e:
 
 
 REQUIRED_ENV_VARS = [
-    "SOLAR_DAQ_INFLUX_URL",
-    "SOLAR_DAQ_INFLUX_TOKEN",
-    "SOLAR_DAQ_INFLUX_ORG",
-    "SOLAR_DAQ_INFLUX_BUCKET",
+    "INFLUX_URL",
+    "INFLUX_TOKEN",
+    "INFLUX_ORG",
+    "INFLUX_BUCKET",
 ]
 
 
