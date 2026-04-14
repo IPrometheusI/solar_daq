@@ -48,7 +48,14 @@ systemctl status solar_daq.service
 
 `setup_repo.sh` crea el entorno virtual `.venv`, instala `requirements.txt`, copia los scripts de `bashScripts/` a `/home/pi/` y registra el servicio `solar_daq.service` para arranque automático.
 
-Si vas a usar InfluxDB, configura antes las variables `INFLUX_URL`, `INFLUX_TOKEN`, `INFLUX_ORG` e `INFLUX_BUCKET` en el entorno donde correrá el servicio.
+Si vas a usar InfluxDB, usa [`.env.example`](.env.example) como plantilla:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Completa `INFLUX_URL`, `INFLUX_TOKEN`, `INFLUX_ORG` e `INFLUX_BUCKET`, y luego usa esos valores en el entorno donde correrá el servicio. No subas `.env` al repositorio.
 
 ## Operación Rápida
 ```bash
